@@ -3,15 +3,22 @@
 #include <avr/sleep.h>
 #include <avr/interrupt.h>
 #include <avr/wdt.h>
+#include <Servo.h>
 
 SoftwareSerial mySerial(10, 11);
 rn2xx3 myLora(mySerial);
 
+Servo myservo;
+int pos = 0;
+
 float water_level = 0;
 float humidity = 0;
 float temperature = 0;
+int wakeup_cnt = 0;
 void setup()
 {
+
+  myservo.attach(7);
   // Set up Watchdog Timer
   MCUSR &= ~(1 << WDRF);          // Clear the reset flag
   WDTCSR |= (1 << WDCE) | (1 << WDE);  // Set up WDT for changes
@@ -22,8 +29,8 @@ void setup()
   Serial.begin(57600); //serial port to computer
   mySerial.begin(9600);
   Serial.println("Startup");
-  initialize_radio();
-  myLora.tx("TTN Mapper on TTN Enschede node");
+  //initialize_radio();
+  //myLora.tx("TTN Mapper on TTN Enschede node");
   delay(2000);
 }
 
@@ -82,43 +89,52 @@ void initialize_radio()
 
 void loop()
 {
-  water_level = analogRead(A0);
-  humidity = analogRead(A1);
-  temperature = analogRead(A2);
-  Serial.print("Water Level: ");
-  Serial.println(water_level/50);
-  Serial.print("Humidity: ");
-  Serial.println(humidity);
-  Serial.print("Temperature: ");
-  Serial.println(temperature);
+  if (wakeup_cnt >= 1) { //450 = 1 hour
+    Serial.println("Opening...");
+    myservo.write(90);              // tell servo to go to position in variable 'pos'
+    delay(3000);                       // waits 15ms for the servo to reach the position
+    Serial.println("Closing...");
+    myservo.write(0);              // tell servo to go to position in variable 'pos'
+    delay(500);                       // waits 15ms for the servo to reach the position
 
-  Serial.print("TXing");
-    myLora.txCnf("!"); //one byte, blocking function
-
-    switch(myLora.txCnf("!")) //one byte, blocking function
-    {
-      case TX_FAIL:
-      {
-        Serial.println("TX unsuccessful or not acknowledged");
-        break;
-      }
-      case TX_SUCCESS:
-      {
-        Serial.println("TX successful and acknowledged");
-        break;
-      }
-      case TX_WITH_RX:
-      {
-        String received = myLora.getRx();
-        received = myLora.base16decode(received);
-        Serial.print("Received downlink: " + received);
-        break;
-      }
-      default:
-      {
-        Serial.println("Unknown response from TX function");
-      }
-    }
+    wakeup_cnt = 0;
+    water_level = analogRead(A0);
+    humidity = analogRead(A1);
+    temperature = analogRead(A2);
+    Serial.print("Water Level: ");
+    Serial.println(water_level/50);
+    Serial.print("Humidity: ");
+    Serial.println(humidity);
+    Serial.print("Temperature: ");
+    Serial.println(temperature);
+    Serial.print("TXing");
+      //myLora.txCnf("!"); //one byte, blocking function
+      //switch(myLora.txCnf("!")) //one byte, blocking function
+      //{
+      //  case TX_FAIL:
+      //  {
+      //    Serial.println("TX unsuccessful or not acknowledged");
+      //    break;
+      //  }
+      //  case TX_SUCCESS:
+      //  {
+      //    Serial.println("TX successful and acknowledged");
+      //    break;
+      //  }
+      //  case TX_WITH_RX:
+      //  {
+      //    String received = myLora.getRx();
+      //    received = myLora.base16decode(received);
+      //    Serial.print("Received downlink: " + received);
+      //    break;
+      //  }
+      //  default:
+      //  {
+      //    Serial.println("Unknown response from TX function");
+      //  }
+      //}
+  }
+     wakeup_cnt = wakeup_cnt + 1;
      enterSleep();
 }
 
@@ -127,6 +143,7 @@ ISR(WDT_vect) {
 
 void enterSleep() {
     //Set sleep mode type and disable parts
+    Serial.println("Entering sleep");
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     sleep_enable();
 
@@ -135,5 +152,6 @@ void enterSleep() {
 
     //On wake up
     sleep_disable();
+    Serial.println("Exiting sleep");
 }
 
