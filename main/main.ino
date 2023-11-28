@@ -4,9 +4,11 @@
 #include <avr/interrupt.h>
 #include <avr/wdt.h>
 #include <Servo.h>
+#include <DHT11.h>
 
 SoftwareSerial mySerial(10, 11);
 rn2xx3 myLora(mySerial);
+DHT11 dht11(4);
 
 Servo myservo;
 int pos = 0;
@@ -15,6 +17,8 @@ float water_level = 0;
 float humidity = 0;
 float temperature = 0;
 int wakeup_cnt = 0;
+unsigned long startTime;
+
 void setup()
 {
 
@@ -26,7 +30,7 @@ void setup()
   WDTCSR |= (1 << WDIE);          // Enable the WD interrupt (not reset)
 
   pinMode(13, OUTPUT);
-  Serial.begin(57600); //serial port to computer
+  Serial.begin(9600); //serial port to computer
   mySerial.begin(9600);
   Serial.println("Startup");
   //initialize_radio();
@@ -90,19 +94,12 @@ void initialize_radio()
 void loop()
 {
   if (wakeup_cnt >= 1) { //450 = 1 hour
-    Serial.println("Opening...");
-    myservo.write(90);              // tell servo to go to position in variable 'pos'
-    delay(3000);                       // waits 15ms for the servo to reach the position
-    Serial.println("Closing...");
-    myservo.write(0);              // tell servo to go to position in variable 'pos'
-    delay(500);                       // waits 15ms for the servo to reach the position
-
     wakeup_cnt = 0;
     water_level = analogRead(A0);
-    humidity = analogRead(A1);
-    temperature = analogRead(A2);
+    humidity = dht11.readHumidity();
+    temperature = dht11.readTemperature();
     Serial.print("Water Level: ");
-    Serial.println(water_level/50);
+    Serial.println(water_level);
     Serial.print("Humidity: ");
     Serial.println(humidity);
     Serial.print("Temperature: ");
@@ -133,6 +130,14 @@ void loop()
       //    Serial.println("Unknown response from TX function");
       //  }
       //}
+    if (humidity < 38 && temperature > 0){
+      Serial.println("Opening...");
+      myservo.write(90);              // tell servo to go to position in variable 'pos'
+      delay(3000);                       // waits 15ms for the servo to reach the position
+      Serial.println("Closing...");
+      myservo.write(0);              // tell servo to go to position in variable 'pos'
+      delay(500);                       // waits 15ms for the servo to reach the position
+    }
   }
      wakeup_cnt = wakeup_cnt + 1;
      enterSleep();
@@ -154,4 +159,3 @@ void enterSleep() {
     sleep_disable();
     Serial.println("Exiting sleep");
 }
-
